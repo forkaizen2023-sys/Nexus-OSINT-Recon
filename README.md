@@ -1,51 +1,79 @@
 Markdown
 # 🌐 Nexus OSINT Recon (NOR)
-**Attack Surface Discovery & Subdomain Enumeration Tool**
 
-> *Lo que no sabes que existe, no lo puedes defender.*
-> 
-> Herramienta táctica de Inteligencia de Fuentes Abiertas (OSINT) para descubrir subdominios expuestos y activos olvidados en infraestructuras B2B.
+> **Attack Surface Discovery & Subdomain Enumeration Tool**
 
----
+Herramienta ligera de OSINT para descubrir subdominios expuestos mediante registros públicos de Certificate Transparency (crt.sh).
 
-## 🎯 El Problema de la Superficie de Ataque
-En infraestructuras corporativas complejas, el equipo de TI a menudo pierde el rastro de subdominios creados para pruebas, integraciones temporales o campañas de marketing antiguas (ej: `dev.empresa.com`, `staging.api.empresa.com`). Estos activos suelen carecer de los parches de seguridad actuales y se convierten en el vector de entrada principal para atacantes y *ransomware*.
+## 🎯 ¿Qué hace?
 
-**Nexus OSINT Recon** consulta los registros públicos de **Transparencia de Certificados (Certificate Transparency)** a través de `crt.sh` para mapear de forma pasiva (sin tocar el servidor objetivo) todos los subdominios criptográficamente asociados a tu dominio principal.
+Nexus OSINT Recon consulta de forma **pasiva** los logs públicos de Certificate Transparency a través de la API de crt.sh. 
 
----
+Esto permite mapear todos los subdominios históricamente asociados a un dominio principal sin enviar tráfico directo al objetivo. Es especialmente útil para:
 
-## ⚙️ Instalación y Requisitos
+- Descubrir activos olvidados (staging, dev, test, legacy, etc.)
+- Identificar posibles vectores de ataque (Subdomain Takeover, servicios expuestos)
+- Realizar reconocimiento inicial en auditorías de seguridad y bug bounty
 
-El script es extremadamente rápido y ligero. Solo requiere dependencias estándar de Linux:
-* `curl` (Para realizar las peticiones a la API).
-* `jq` (Para parsear el JSON de respuesta). *Instalación: `sudo apt install jq` o `brew install jq`*
+## ✨ Características
 
-### 1. Clonar el arsenal
+- Consulta rápida y ligera a crt.sh
+- Filtrado y limpieza automática de resultados
+- User-Agent configurable (neutral por defecto)
+- Validación robusta de respuestas JSON
+- Salida ordenada y sin duplicados
+- Archivo de resultados con timestamp
+- Sin dependencias complejas (solo `curl` y `jq`)
+- Fácil de integrar en pipelines de automatización
+
+## 📦 Instalación
+
+### Requisitos
+
+- `curl`
+- `jq`
+
 ```bash
-git clone [https://github.com/forkaizen2023-sys/Nexus-OSINT-Recon.git](https://github.com/forkaizen2023-sys/Nexus-OSINT-Recon.git)
+# Debian / Ubuntu
+sudo apt install curl jq
+
+# macOS
+brew install curl jq
+Clonar el repositorio
+Bashgit clone https://github.com/forkaizen2023-sys/Nexus-OSINT-Recon.git
 cd Nexus-OSINT-Recon
-2. Dar permisos de ejecución
-Bash
 chmod +x nexus_recon.sh
-3. Lanzar el reconocimiento
-Ejecuta el script pasando únicamente el dominio principal (sin https:// ni www):
+🚀 Uso
+Bash./nexus_recon.sh dominio.com
+Ejemplo:
+Bash./nexus_recon.sh empresa.com
+Sobrescribir el User-Agent (opcional)
+BashUSER_AGENT="MiScanner/1.0" ./nexus_recon.sh empresa.com
+📊 Salida
+El script genera dos cosas:
 
-Bash
-./nexus_recon.sh tu-empresa.com
-📊 Salida de Inteligencia (Output)
-El script limpiará, filtrará y ordenará todos los registros únicos encontrados, devolviendo una lista en texto plano directo a tu terminal.
+Salida en terminal con la lista de subdominios encontrados.
+Archivo con timestamp en el directorio actual:
+Ejemplo: subdomains_empresa.com_20250625_113045.txt
 
-🟢 [+] Se encontraron X subdominios asociados: Lista completa de tu perímetro digital.
 
-🔴 [!] ALERTA TÁCTICA: Revisa cada dominio de la lista. Si encuentras un subdominio que no controlas, que apunta a un servicio en la nube que ya no pagas (Subdomain Takeover), o que ejecuta software legacy, tu red está comprometida.
+Ejemplo de salida
+text[+] Se encontraron 47 subdominios únicos.
+[+] Resultados guardados en: subdomains_empresa.com_20250625_113045.txt
 
-💼 Servicios de Auditoría (Red Teaming)
-Si el escáner ha revelado una superficie de ataque mayor a la que tenías documentada, tu perímetro necesita una revisión forense antes de que esos vectores sean descubiertos por actores maliciosos.
-
-En Nexus Digital, no solo descubrimos tus activos expuestos; ejecutamos pruebas de intrusión controladas sobre ellos y diseñamos la arquitectura (SOAR) para monitorizarlos 24/7.
-
-Cierra tu perímetro hoy. Solicita un Protocolo Zero-Trust:
-🔗 https://www.nexusdigital.pro
-
-Desarrollado y mantenido por David Jaimes (Senior Cybersecurity Engineer) - Nexus Digital 2026.
+dev.empresa.com
+api.empresa.com
+staging.empresa.com
+old-dashboard.empresa.com
+...
+⚠️ Recomendación de Seguridad
+Cada subdominio encontrado representa un activo potencialmente expuesto. Se recomienda auditarlos con herramientas como httpx, nuclei o subzy para detectar configuraciones inseguras o riesgos de Subdomain Takeover.
+🛠️ Cómo funciona
+El script realiza una consulta a la API pública de crt.sh usando el patrón %.dominio.com. Posteriormente procesa, limpia y ordena los resultados.
+Es una herramienta pasiva (no interactúa directamente con los subdominios descubiertos).
+📜 Disclaimer
+Esta herramienta se proporciona solo con fines educativos y de auditoría autorizada.
+El uso de esta herramienta contra sistemas que no te pertenecen o sin autorización explícita puede ser ilegal. El autor no se hace responsable del mal uso de esta herramienta.
+👤 Autor
+Desarrollado por David Jaimes
+Senior Cybersecurity Engineer | Nexus Digital
