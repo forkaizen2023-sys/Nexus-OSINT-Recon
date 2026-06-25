@@ -11,9 +11,24 @@ YELLOW='\e[33m'
 BLUE='\e[34m'
 NC='\e[0m'
 
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+
+# User-Agent configurable (puedes sobrescribirlo al ejecutar)
+# Ejemplo: USER_AGENT="MiScanner/1.0" ./nexus_recon.sh ejemplo.com
+USER_AGENT="${USER_AGENT:-Mozilla/5.0 (compatible; OSINT-Scanner/2.1)}"
+
+# ============================================================
+# VALIDACIÓN DE ARGUMENTOS
+# ============================================================
+
 if [ -z "${1:-}" ]; then
-    echo -e "${RED}[!] Error: Dominio objetivo requerido.${NC}"
+    echo -e "${RED}[!] Error: Debes proporcionar un dominio.${NC}"
     echo "Uso: $0 dominio.com"
+    echo ""
+    echo "Ejemplo:"
+    echo "  $0 ejemplo.com"
     exit 1
 fi
 
@@ -21,54 +36,75 @@ TARGET="$1"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE="subdomains_${TARGET}_${TIMESTAMP}.txt"
 
-echo -e "${BLUE}[*] Verificando dependencias críticas...${NC}"
+# ============================================================
+# VERIFICACIÓN DE DEPENDENCIAS
+# ============================================================
+
+echo -e "${BLUE}[*] Verificando dependencias...${NC}"
+
 for cmd in curl jq; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        echo -e "${RED}[!] Error crítico: '$cmd' no está instalado.${NC}"
-        echo "Instálalo con: sudo apt install $cmd   (o brew install $cmd)"
+        echo -e "${RED}[!] Error: '$cmd' no está instalado.${NC}"
+        echo "Instálalo con:"
+        echo "  sudo apt install $cmd     # Debian/Ubuntu"
+        echo "  sudo dnf install $cmd     # Fedora"
+        echo "  brew install $cmd         # macOS"
         exit 1
     fi
 done
 
-echo -e "${BLUE}[*] Extrayendo subdominios de Certificate Transparency para: $TARGET${NC}"
-echo "---------------------------------------------------"
+echo -e "${GREEN}[+] Dependencias verificadas.${NC}"
+
+# ============================================================
+# CONSULTA A CRT.SH
+# ============================================================
+
+echo -e "${BLUE}[*] Consultando Certificate Transparency para: $TARGET${NC}"
+echo "------------------------------------------------------------"
 
 URL="https://crt.sh/?q=%25.$TARGET&output=json"
 
-# User-Agent custom (reduce bloqueos)
-RAW=$(curl -s -A "NEXUS-OSINT/2.0 (+https://nexusdigital.pro)" "$URL" || echo "CURL_FAILED")
+RAW=$(curl -s -A "$USER_AGENT" "$URL" || echo "CURL_FAILED")
 
 if [ "$RAW" = "CURL_FAILED" ] || [ -z "$RAW" ]; then
-    echo -e "${RED}[-] Fallo de conexión a crt.sh. Verifica internet o firewall.${NC}"
+    echo -e "${RED}[-] Error: No se pudo conectar con crt.sh.${NC}"
+    echo "Verifica tu conexión a internet."
     exit 1
 fi
 
-# Validación estricta de JSON array
+# Validar que la respuesta sea un array JSON válido
 if ! echo "$RAW" | jq -e 'type == "array"' >/dev/null 2>&1; then
-    echo -e "${RED}[-] crt.sh NO devolvió JSON válido (rate limit / error temporal / Cloudflare).${NC}"
-    echo "Primeras 600 caracteres de respuesta:"
-    echo "$RAW" | head -c 600
+    echo -e "${RED}[-] Error: crt.sh devolvió una respuesta inválida.${NC}"
+    echo "Posible rate limit o error temporal."
     echo ""
-    echo -e "${YELLOW}[!] Espera 45-90 segundos e intenta de nuevo.${NC}"
+    echo "Primeros 500 caracteres de la respuesta:"
+    echo "$RAW" | head -c 500
     exit 1
 fi
 
-# Extracción limpia
+# ============================================================
+# PROCESAMIENTO DE RESULTADOS
+# ============================================================
+
 echo "$RAW" | jq -r '.[].name_value' | sed 's/\*\.//g' | sort -u > "$OUTPUT_FILE"
 
 COUNT=$(wc -l < "$OUTPUT_FILE")
 
+echo "------------------------------------------------------------"
+
 if [ "$COUNT" -gt 0 ]; then
-    echo -e "${GREEN}[+] $COUNT subdominios únicos encontrados.${NC}"
-    echo -e "${GREEN}[+] Archivo guardado en: $OUTPUT_FILE${NC}"
-    echo "---------------------------------------------------"
+    echo -e "${GREEN}[+] Se encontraron $COUNT subdominios únicos.${NC}"
+    echo -e "${GREEN}[+] Resultados guardados en: ${OUTPUT_FILE}${NC}"
+    echo "------------------------------------------------------------"
     cat "$OUTPUT_FILE"
-    echo "---------------------------------------------------"
-    echo -e "${YELLOW}[!] ALERTA DE SEGURIDAD CRÍTICA:${NC}"
-    echo -e "${RED}Un solo subdominio olvidado es puerta de entrada a toda tu red.${NC}"
-    echo -e "Recomendación: audita cada uno con httpx + nuclei."
+    echo "------------------------------------------------------------"
+    
+    echo -e "${YELLOW}[!] Recomendación de seguridad:${NC}"
+    echo -e "${RED}   Cada subdominio puede ser un punto de entrada."
+    echo -e "   Se recomienda auditarlos con herramientas como httpx y nuclei.${NC}"
 else
-    echo -e "${YELLOW}[-] No se encontraron subdominios en CT logs para este dominio.${NC}"
+    echo -e "${YELLOW}[-] No se encontraron subdominios en los registros de CT.${NC}"
 fi
 
-echo -e "${BLUE}[>] Ejecución completada. Archivo preservado para tu análisis y registros.${NC}"
+echo ""
+echo -e "${BLUE}[*] Proceso finalizado.${NC}"
